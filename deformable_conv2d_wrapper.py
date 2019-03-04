@@ -120,3 +120,55 @@ class DeformableConv2DLayer(Module):
             self.deformable_groups,
             self.im2col_step,
             self.no_bias)
+
+
+class BasicDeformableConv2D(nn.Module):
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 kernel_size,
+                 stride_h, stride_w,
+                 padding,
+                 dilation_h=1, dilation_w=1,
+                 num_groups=1,
+                 deformable_groups=1,
+                 im2col_step=1,
+                 no_bias=True,
+                 ):
+        super(BasicDeformableConv2D, self).__init__()
+        self.offset_generator = nn.Conv2d(
+            in_channels,
+            kernel_size * kernel_size * 2,
+            kernel_size=kernel_size,
+            padding=padding
+        )
+        self.mask_generator = nn.Conv2d(
+            in_channels,
+            kernel_size * kernel_size,
+            kernel_size=kernel_size,
+            padding=padding
+        )
+        self.deformable_conv2d = DeformableConv2DLayer(
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride_h, stride_w,
+            padding,
+            dilation_h, dilation_w,
+            num_groups,
+            deformable_groups,
+            im2col_step,
+            no_bias
+        )
+        self.Sigmoid = nn.Sigmoid()
+        # initialization
+        nn.init.zeros_(self.offset_generator.weight)
+        nn.init.zeros_(self.offset_generator.bias)
+        nn.init.zeros_(self.mask_generator.weight)
+        nn.init.zeros_(self.mask_generator.bias)
+
+    def forward(self, x):
+        offset = self.offset_generator(x)
+        mask_origin = self.mask_generator(x)
+        mask = self.Sigmoid(mask_origin)
+        return self.deformable_conv2d(x, offset, mask)
